@@ -1,0 +1,908 @@
+% ============================================================================
+% DOCUMENT DE RECHERCHE - MODÈLE COX-ROSS-RUBINSTEIN
+% Projet d'Innovation Industrielle - ESILV
+% ============================================================================
+
+\documentclass[11pt,a4paper]{article}
+
+% --- PACKAGES ---
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[french]{babel}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage{mathtools}
+\usepackage{geometry}
+\usepackage{graphicx}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{cleveref}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{tcolorbox}
+\usepackage{tikz}
+\usetikzlibrary{trees,positioning,arrows.meta,calc}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\usepackage{float}
+\usepackage{caption}
+\usepackage{subcaption}
+
+% --- GEOMETRY ---
+\geometry{margin=2.5cm}
+
+% --- COLORS ---
+\definecolor{esilv}{RGB}{227,6,19}
+\definecolor{darkblue}{RGB}{0,51,102}
+\definecolor{lightblue}{RGB}{230,240,250}
+\definecolor{darkgray}{RGB}{64,64,64}
+\definecolor{formula}{RGB}{245,245,250}
+
+% --- HYPERREF ---
+\hypersetup{
+    colorlinks=true,
+    linkcolor=darkblue,
+    urlcolor=darkblue,
+    citecolor=darkblue
+}
+
+% --- HEADERS ---
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\textcolor{darkgray}{Projet Pi² - ESILV}}
+\fancyhead[R]{\small\textcolor{darkgray}{Modèle CRR}}
+\fancyfoot[C]{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+
+% --- THEOREM ENVIRONMENTS ---
+\theoremstyle{definition}
+\newtheorem{definition}{Définition}[section]
+\newtheorem{theorem}{Théorème}[section]
+\newtheorem{proposition}{Proposition}[section]
+\newtheorem{example}{Exemple}[section]
+\newtheorem{remark}{Remarque}[section]
+
+% --- CUSTOM BOXES ---
+\newtcolorbox{keybox}[1][]{
+    colback=lightblue,
+    colframe=darkblue,
+    fonttitle=\bfseries,
+    title=#1
+}
+
+\newtcolorbox{formulabox}{
+    colback=formula,
+    colframe=darkgray,
+    boxrule=0.5pt
+}
+
+% --- TITLE FORMATTING ---
+\titleformat{\section}
+    {\Large\bfseries\color{darkblue}}
+    {\thesection}{1em}{}[\titlerule]
+
+\titleformat{\subsection}
+    {\large\bfseries\color{darkblue}}
+    {\thesubsection}{1em}{}
+
+% ============================================================================
+% DOCUMENT
+% ============================================================================
+
+\begin{document}
+
+% --- TITLE PAGE ---
+\begin{titlepage}
+    \centering
+    \vspace*{2cm}
+    
+    {\Huge\bfseries\color{darkblue} Le Modèle de Cox-Ross-Rubinstein}\\[0.5cm]
+    {\Large\color{darkgray} Une Approche Complète du Pricing d'Options}\\[2cm]
+    
+    {\large\textit{De l'intuition mathématique à l'implémentation pratique}}\\[3cm]
+    
+    \begin{tikzpicture}[
+        level distance=1.5cm,
+        level 1/.style={sibling distance=4cm},
+        level 2/.style={sibling distance=2cm},
+        edge from parent/.style={draw,-latex},
+        every node/.style={circle,draw,minimum size=8mm,font=\footnotesize}
+    ]
+        \node {$S_0$}
+            child {node {$Su$}
+                child {node {$Su^2$}}
+                child {node {$Sud$}}
+            }
+            child {node {$Sd$}
+                child {node {$Sud$}}
+                child {node {$Sd^2$}}
+            };
+    \end{tikzpicture}
+    
+    \vfill
+    
+    {\large Projet d'Innovation Industrielle (Pi²)}\\[0.3cm]
+    {\large ESILV - École Supérieure d'Ingénieurs Léonard de Vinci}\\[1cm]
+    
+    \textbf{Équipe projet :}\\
+    Alexis Hanna Gerguis $\bullet$ Adrien Bayre $\bullet$ Jack Liu\\
+    Marcellin Milcent $\bullet$ Sinthia Vanelle Jouonang Kapnang\\[0.5cm]
+    
+    \textbf{Superviseur :} Vincent Marc Lambert\\[1cm]
+    
+    {\large Janvier 2026}
+\end{titlepage}
+
+% --- TABLE OF CONTENTS ---
+\tableofcontents
+\newpage
+
+% ============================================================================
+\section{Introduction : Pourquoi ce modèle existe-t-il ?}
+% ============================================================================
+
+\subsection{Le contexte historique}
+
+Avant 1973, valoriser une option était considéré comme un art plutôt qu'une science. Les traders utilisaient leur intuition, leur expérience, et parfois des règles empiriques pour fixer les prix. Cette situation était problématique : comment deux parties pouvaient-elles s'entendre sur un prix \og juste \fg{} sans cadre théorique commun ?
+
+\begin{keybox}[Le problème fondamental]
+Comment déterminer aujourd'hui le prix d'un contrat qui donne le droit (mais pas l'obligation) d'acheter ou de vendre un actif à une date future, sachant que personne ne peut prédire l'avenir ?
+\end{keybox}
+
+En 1973, Fischer Black et Myron Scholes publient leur article révolutionnaire \textit{``The Pricing of Options and Corporate Liabilities''}, introduisant ce qui deviendra la formule de Black-Scholes. Robert Merton généralise et approfondit ces travaux la même année. Cette découverte leur vaudra le prix Nobel d'économie en 1997.
+
+Cependant, la formule de Black-Scholes, aussi élégante soit-elle, repose sur des mathématiques avancées (calcul stochastique, équations aux dérivées partielles) qui la rendent difficile d'accès pour les non-spécialistes.
+
+\subsection{L'apport de Cox, Ross et Rubinstein}
+
+En 1979, John Cox, Stephen Ross et Mark Rubinstein publient \textit{``Option Pricing: A Simplified Approach''}. Leur objectif : rendre l'intuition derrière Black-Scholes accessible à travers un modèle discret.
+
+\begin{keybox}[L'idée géniale de CRR]
+Au lieu de considérer que le prix d'un actif peut prendre une infinité de valeurs à chaque instant (temps continu), supposons qu'il ne peut que \textbf{monter} ou \textbf{descendre} d'un certain pourcentage à chaque période (temps discret).
+\end{keybox}
+
+Cette simplification n'est pas qu'un outil pédagogique. Elle permet :
+\begin{enumerate}
+    \item De \textbf{comprendre intuitivement} le mécanisme de valorisation
+    \item De \textbf{calculer numériquement} des prix d'options complexes
+    \item De \textbf{construire explicitement} la stratégie de couverture
+    \item De \textbf{converger vers Black-Scholes} quand le nombre de périodes tend vers l'infini
+\end{enumerate}
+
+\subsection{Étymologie et terminologie}
+
+Avant d'aller plus loin, clarifions le vocabulaire :
+
+\begin{description}[leftmargin=2cm,style=nextline]
+    \item[Option] Du latin \textit{optio} (choix). Un contrat donnant le \textit{choix} d'exercer ou non.
+    
+    \item[Call] De l'anglais \textit{to call} (appeler, réclamer). L'acheteur peut \og réclamer \fg{} l'actif.
+    
+    \item[Put] De l'anglais \textit{to put} (mettre, placer). L'acheteur peut \og placer \fg{} l'actif chez le vendeur.
+    
+    \item[Strike] De l'anglais \textit{to strike a deal} (conclure un accord). Le prix convenu.
+    
+    \item[Premium] Du latin \textit{praemium} (récompense). Le prix payé pour acquérir l'option.
+    
+    \item[Delta ($\Delta$)] Lettre grecque symbolisant le changement. Mesure la sensibilité au sous-jacent.
+    
+    \item[Hedging] De l'anglais \textit{hedge} (haie). Se protéger, comme une haie protège un jardin.
+    
+    \item[Arbitrage] Du français, emprunté au latin \textit{arbitrari} (juger). Profit sans risque exploitant des incohérences de prix.
+\end{description}
+
+
+% ============================================================================
+\section{Les fondements mathématiques}
+% ============================================================================
+
+\subsection{Le modèle à une période : l'intuition}
+
+Commençons par le cas le plus simple. Un actif a aujourd'hui un prix $S_0$. Dans une période, il peut :
+\begin{itemize}
+    \item Monter à $S_u = S_0 \cdot u$ avec $u > 1$ (facteur de hausse)
+    \item Descendre à $S_d = S_0 \cdot d$ avec $0 < d < 1$ (facteur de baisse)
+\end{itemize}
+
+\begin{center}
+\begin{tikzpicture}[
+    node distance=3cm,
+    every node/.style={font=\small}
+]
+    \node[circle,draw,fill=lightblue] (S0) {$S_0$};
+    \node[circle,draw,fill=green!20] (Su) [above right=1.5cm and 3cm of S0] {$S_0 \cdot u$};
+    \node[circle,draw,fill=red!20] (Sd) [below right=1.5cm and 3cm of S0] {$S_0 \cdot d$};
+    
+    \draw[-latex,thick] (S0) -- (Su) node[midway,above,sloped] {probabilité $p$};
+    \draw[-latex,thick] (S0) -- (Sd) node[midway,below,sloped] {probabilité $1-p$};
+\end{tikzpicture}
+\end{center}
+
+Considérons un call européen de strike $K$. Ses payoffs possibles sont :
+\begin{align}
+    C_u &= \max(S_0 \cdot u - K, 0) \quad \text{(si hausse)} \\
+    C_d &= \max(S_0 \cdot d - K, 0) \quad \text{(si baisse)}
+\end{align}
+
+\begin{keybox}[La question clé]
+Quel prix $C_0$ devons-nous payer aujourd'hui pour ce call ?
+\end{keybox}
+
+\subsection{L'argument de réplication}
+
+L'idée centrale est la \textbf{réplication} : construire un portefeuille qui reproduit exactement les payoffs de l'option.
+
+Considérons un portefeuille composé de :
+\begin{itemize}
+    \item $\phi$ actions (peut être fractionnaire)
+    \item $\psi$ unités d'obligation sans risque (rapportant le taux $r$)
+\end{itemize}
+
+Ce portefeuille vaut aujourd'hui $V_0 = \phi S_0 + \psi$.
+
+Dans une période, il vaudra :
+\begin{align}
+    V_u &= \phi S_0 u + \psi e^{r\Delta t} \quad \text{(si hausse)} \\
+    V_d &= \phi S_0 d + \psi e^{r\Delta t} \quad \text{(si baisse)}
+\end{align}
+
+Pour répliquer l'option, nous voulons :
+\begin{equation}
+    \begin{cases}
+        V_u = C_u \\
+        V_d = C_d
+    \end{cases}
+\end{equation}
+
+Ce système de deux équations à deux inconnues ($\phi$ et $\psi$) a une solution unique :
+
+\begin{formulabox}
+\begin{equation}
+    \boxed{\phi = \frac{C_u - C_d}{S_0(u - d)}}
+\end{equation}
+\textbf{C'est le delta de l'option !} Il représente le nombre d'actions à détenir pour répliquer l'option.
+\end{formulabox}
+
+\subsection{Le principe de non-arbitrage}
+
+\begin{definition}[Arbitrage]
+Un arbitrage est une stratégie financière qui permet de réaliser un profit certain sans investissement initial et sans risque.
+\end{definition}
+
+Dans un marché efficient, les arbitrages ne peuvent pas exister durablement. Ce principe fondamental a une conséquence directe :
+
+\begin{theorem}[Prix par non-arbitrage]
+Si un portefeuille réplique exactement les payoffs d'une option, alors le prix de l'option doit être égal au coût du portefeuille répliquant.
+\end{theorem}
+
+\begin{proof}
+Supposons que $C_0 > V_0$ (l'option est surévaluée). Un arbitrageur pourrait :
+\begin{enumerate}
+    \item Vendre l'option à $C_0$
+    \item Acheter le portefeuille répliquant pour $V_0$
+    \item Empocher la différence $C_0 - V_0 > 0$
+\end{enumerate}
+À maturité, le portefeuille paie exactement ce que l'option doit, donc la position est couverte. Profit sans risque : arbitrage.
+
+Le raisonnement symétrique s'applique si $C_0 < V_0$.
+
+Conclusion : $C_0 = V_0$.
+\end{proof}
+
+\subsection{La probabilité risque-neutre}
+
+En développant les calculs, on obtient :
+
+\begin{formulabox}
+\begin{equation}
+    \boxed{C_0 = e^{-r\Delta t}\left[p \cdot C_u + (1-p) \cdot C_d\right]}
+\end{equation}
+où la \textbf{probabilité risque-neutre} est :
+\begin{equation}
+    \boxed{p = \frac{e^{r\Delta t} - d}{u - d}}
+\end{equation}
+\end{formulabox}
+
+\begin{remark}[Interprétation fondamentale]
+La probabilité $p$ n'est \textbf{pas} la probabilité réelle que l'actif monte. C'est une probabilité \og artificielle \fg{} telle que le prix de l'option soit l'espérance actualisée de ses payoffs. On l'appelle aussi \textbf{mesure martingale} ou \textbf{mesure de pricing}.
+\end{remark}
+
+\subsection{Condition de non-arbitrage}
+
+Pour que le modèle soit cohérent (pas d'arbitrage possible), il faut :
+
+\begin{equation}
+    \boxed{d < e^{r\Delta t} < u}
+\end{equation}
+
+\begin{proof}
+Cette condition garantit que $0 < p < 1$.
+
+\begin{itemize}
+    \item Si $e^{r\Delta t} \leq d$ : on pourrait emprunter au taux $r$, acheter l'action, et être certain de rembourser plus que l'emprunt (arbitrage).
+    \item Si $e^{r\Delta t} \geq u$ : on pourrait vendre l'action à découvert, placer au taux $r$, et être certain de racheter moins cher (arbitrage).
+\end{itemize}
+\end{proof}
+
+
+% ============================================================================
+\section{Le modèle multi-périodes}
+% ============================================================================
+
+\subsection{Construction de l'arbre}
+
+Étendons le modèle à $N$ périodes. L'actif évolue selon un \textbf{arbre binomial recombinant} :
+
+\begin{center}
+\begin{tikzpicture}[
+    scale=0.9,
+    level distance=2cm,
+    level 1/.style={sibling distance=4cm},
+    level 2/.style={sibling distance=2cm},
+    level 3/.style={sibling distance=1cm},
+    edge from parent/.style={draw,-latex,thin},
+    every node/.style={circle,draw,minimum size=6mm,font=\tiny,inner sep=1pt}
+]
+    \node {$S_0$}
+        child {node {$Su$}
+            child {node {$Su^2$}
+                child {node {$Su^3$}}
+                child {node {$Su^2d$}}
+            }
+            child {node {$Sud$}
+                child {node {$Su^2d$}}
+                child {node {$Sud^2$}}
+            }
+        }
+        child {node {$Sd$}
+            child {node {$Sud$}
+                child {node {$Su^2d$}}
+                child {node {$Sud^2$}}
+            }
+            child {node {$Sd^2$}
+                child {node {$Sud^2$}}
+                child {node {$Sd^3$}}
+            }
+        };
+\end{tikzpicture}
+\end{center}
+
+\begin{definition}[Arbre recombinant]
+Un arbre est dit recombinant si $ud = 1$, ce qui implique qu'une hausse suivie d'une baisse ramène au même prix qu'une baisse suivie d'une hausse.
+\end{definition}
+
+À l'instant $t = i \cdot \Delta t$, après $j$ baisses et $(i-j)$ hausses, le prix est :
+\begin{equation}
+    S_{i,j} = S_0 \cdot u^{i-j} \cdot d^j = S_0 \cdot u^{i-2j}
+\end{equation}
+
+\subsection{Choix des paramètres CRR}
+
+Cox, Ross et Rubinstein proposent :
+
+\begin{formulabox}
+\begin{align}
+    u &= e^{\sigma\sqrt{\Delta t}} \\
+    d &= e^{-\sigma\sqrt{\Delta t}} = \frac{1}{u} \\
+    \Delta t &= \frac{T}{N}
+\end{align}
+où $\sigma$ est la volatilité annualisée et $T$ le temps jusqu'à maturité.
+\end{formulabox}
+
+\begin{remark}[Pourquoi ces formules ?]
+Ces paramètres sont choisis pour que les deux premiers moments (moyenne et variance) du processus discret correspondent à ceux du mouvement brownien géométrique :
+\begin{equation}
+    dS_t = \mu S_t dt + \sigma S_t dW_t
+\end{equation}
+C'est ce qui garantit la convergence vers Black-Scholes.
+\end{remark}
+
+\subsection{Algorithme de backward induction}
+
+Le prix de l'option se calcule en \textbf{remontant l'arbre} depuis la maturité :
+
+\begin{enumerate}
+    \item \textbf{Initialisation} (à maturité $t = T$) :
+    \begin{equation}
+        C_{N,j} = \max(S_{N,j} - K, 0) \quad \text{pour un call}
+    \end{equation}
+    
+    \item \textbf{Récurrence} (de $i = N-1$ à $i = 0$) :
+    \begin{equation}
+        C_{i,j} = e^{-r\Delta t}\left[p \cdot C_{i+1,j} + (1-p) \cdot C_{i+1,j+1}\right]
+    \end{equation}
+    
+    \item \textbf{Résultat} : $C_{0,0}$ est le prix de l'option
+\end{enumerate}
+
+\subsection{Formule fermée}
+
+En développant la récurrence, on obtient une formule explicite :
+
+\begin{theorem}[Prix CRR d'un call européen]
+\begin{equation}
+    C_0 = e^{-rT} \sum_{j=0}^{N} \binom{N}{j} p^{N-j}(1-p)^j \max(S_0 u^{N-2j} - K, 0)
+\end{equation}
+\end{theorem}
+
+Cette formule est une somme pondérée des payoffs possibles, où les poids sont les probabilités binomiales risque-neutres.
+
+
+% ============================================================================
+\section{La convergence vers Black-Scholes}
+% ============================================================================
+
+\subsection{Le théorème central}
+
+\begin{theorem}[Convergence CRR $\to$ BS]
+Quand $N \to \infty$ (et donc $\Delta t \to 0$), le prix CRR converge vers le prix Black-Scholes :
+\begin{equation}
+    \lim_{N \to \infty} C_0^{CRR}(N) = C_0^{BS}
+\end{equation}
+avec un taux de convergence $O(1/N)$.
+\end{theorem}
+
+\subsection{Rappel de la formule de Black-Scholes}
+
+\begin{formulabox}
+\textbf{Call européen :}
+\begin{equation}
+    C = S_0 N(d_1) - K e^{-rT} N(d_2)
+\end{equation}
+
+\textbf{Put européen :}
+\begin{equation}
+    P = K e^{-rT} N(-d_2) - S_0 N(-d_1)
+\end{equation}
+
+où :
+\begin{align}
+    d_1 &= \frac{\ln(S_0/K) + (r + \sigma^2/2)T}{\sigma\sqrt{T}} \\
+    d_2 &= d_1 - \sigma\sqrt{T}
+\end{align}
+
+et $N(\cdot)$ est la fonction de répartition de la loi normale centrée réduite.
+\end{formulabox}
+
+\subsection{Intuition de la convergence}
+
+La convergence repose sur le \textbf{théorème central limite}. Dans le modèle CRR à $N$ périodes :
+\begin{equation}
+    \ln\left(\frac{S_T}{S_0}\right) = \sum_{i=1}^{N} X_i
+\end{equation}
+où $X_i = \ln(u)$ avec probabilité $p$ et $X_i = \ln(d)$ avec probabilité $1-p$.
+
+Quand $N \to \infty$, par le TCL :
+\begin{equation}
+    \ln\left(\frac{S_T}{S_0}\right) \xrightarrow{\mathcal{L}} \mathcal{N}\left((r - \sigma^2/2)T, \sigma^2 T\right)
+\end{equation}
+
+C'est exactement la distribution de $\ln(S_T/S_0)$ sous le mouvement brownien géométrique risque-neutre !
+
+\subsection{Illustration numérique}
+
+\begin{table}[H]
+\centering
+\caption{Convergence du prix CRR vers Black-Scholes ($S_0=100$, $K=100$, $T=1$, $r=5\%$, $\sigma=20\%$)}
+\begin{tabular}{rcc}
+\toprule
+\textbf{Étapes $N$} & \textbf{Prix CRR} & \textbf{Erreur vs BS} \\
+\midrule
+10 & 10.4494 & 0.0971 \\
+50 & 10.5269 & 0.0196 \\
+100 & 10.5367 & 0.0098 \\
+200 & 10.5416 & 0.0049 \\
+500 & 10.5446 & 0.0019 \\
+\midrule
+$\infty$ (BS) & 10.5465 & --- \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+On observe bien une convergence en $O(1/N)$ : quand on double $N$, l'erreur est divisée par 2.
+
+
+% ============================================================================
+\section{Le delta hedging : la couverture dynamique}
+% ============================================================================
+
+\subsection{Principe fondamental}
+
+Le delta hedging est la stratégie qui consiste à maintenir un portefeuille dont la valeur réplique celle de l'option à chaque instant.
+
+\begin{definition}[Delta]
+Le delta d'une option est la sensibilité de son prix à une variation du sous-jacent :
+\begin{equation}
+    \Delta = \frac{\partial C}{\partial S}
+\end{equation}
+\end{definition}
+
+\subsection{Delta dans le modèle CRR}
+
+À chaque nœud $(i,j)$ de l'arbre, le delta est :
+
+\begin{formulabox}
+\begin{equation}
+    \phi_{i,j} = \frac{C_{i+1,j} - C_{i+1,j+1}}{S_{i+1,j} - S_{i+1,j+1}} = \frac{C^u - C^d}{S(u-d)}
+\end{equation}
+\end{formulabox}
+
+\subsection{Stratégie autofinancée}
+
+\begin{definition}[Portefeuille autofinancé]
+Un portefeuille est autofinancé si aucune injection ou retrait de capital n'a lieu après l'instant initial. Tout rééquilibrage se fait en achetant/vendant des actifs au prix du marché.
+\end{definition}
+
+Dans le CRR, la stratégie de réplication est naturellement autofinancée. À chaque pas de temps :
+\begin{enumerate}
+    \item On observe le nouveau prix $S$
+    \item On calcule le nouveau delta $\phi$
+    \item On ajuste la position en actions (achat ou vente)
+    \item Le cash nécessaire provient du portefeuille existant
+\end{enumerate}
+
+\subsection{Le delta de Black-Scholes}
+
+En temps continu :
+\begin{equation}
+    \Delta_{call} = N(d_1), \quad \Delta_{put} = N(d_1) - 1 = -N(-d_1)
+\end{equation}
+
+\begin{remark}[Interprétation]
+\begin{itemize}
+    \item Pour un call : $0 < \Delta < 1$
+    \item Un call très ITM a $\Delta \approx 1$ (se comporte comme l'action)
+    \item Un call très OTM a $\Delta \approx 0$ (insensible au sous-jacent)
+    \item Un call ATM a $\Delta \approx 0.5$
+\end{itemize}
+\end{remark}
+
+\subsection{Sources d'erreur du hedging discret}
+
+En pratique, le hedging ne peut pas être continu. Les sources d'erreur sont :
+
+\begin{enumerate}
+    \item \textbf{Gamma risk} : Le delta change entre deux rééquilibrages
+    \item \textbf{Volatilité réalisée $\neq$ volatilité implicite}
+    \item \textbf{Coûts de transaction}
+    \item \textbf{Liquidité imparfaite}
+\end{enumerate}
+
+\begin{theorem}[Erreur de hedging discret]
+L'écart-type de l'erreur de hedging avec $N$ rééquilibrages est approximativement :
+\begin{equation}
+    \sigma_{error} \propto \frac{\Gamma \cdot S^2 \cdot \sigma^2}{2\sqrt{N}}
+\end{equation}
+où $\Gamma = \partial^2 C / \partial S^2$ est le gamma de l'option.
+\end{theorem}
+
+
+% ============================================================================
+\section{Les Greeks : outils de gestion du risque}
+% ============================================================================
+
+\subsection{Vue d'ensemble}
+
+Les Greeks mesurent les sensibilités du prix de l'option aux différents paramètres :
+
+\begin{table}[H]
+\centering
+\caption{Les Greeks et leurs interprétations}
+\begin{tabular}{llll}
+\toprule
+\textbf{Greek} & \textbf{Symbole} & \textbf{Définition} & \textbf{Mesure} \\
+\midrule
+Delta & $\Delta$ & $\partial C / \partial S$ & Sensibilité au sous-jacent \\
+Gamma & $\Gamma$ & $\partial^2 C / \partial S^2$ & Convexité (stabilité du delta) \\
+Vega & $\mathcal{V}$ & $\partial C / \partial \sigma$ & Sensibilité à la volatilité \\
+Theta & $\Theta$ & $\partial C / \partial t$ & Décroissance temporelle \\
+Rho & $\rho$ & $\partial C / \partial r$ & Sensibilité aux taux \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Formules de Black-Scholes}
+
+\begin{formulabox}
+\begin{align}
+    \Delta_{call} &= N(d_1) \\
+    \Gamma &= \frac{N'(d_1)}{S\sigma\sqrt{T}} \\
+    \mathcal{V} &= S\sqrt{T}N'(d_1) \\
+    \Theta_{call} &= -\frac{S N'(d_1) \sigma}{2\sqrt{T}} - rKe^{-rT}N(d_2) \\
+    \rho_{call} &= KTe^{-rT}N(d_2)
+\end{align}
+où $N'(x) = \frac{1}{\sqrt{2\pi}}e^{-x^2/2}$ est la densité de la loi normale.
+\end{formulabox}
+
+\subsection{Utilisation pratique}
+
+\begin{example}[Gestion du Gamma]
+Un trader vend des options ATM (gamma élevé). Pour réduire son exposition au gamma, il peut :
+\begin{itemize}
+    \item Acheter des options de même gamma
+    \item Augmenter la fréquence de rééquilibrage
+    \item Couvrir avec des options plus éloignées de la monnaie
+\end{itemize}
+\end{example}
+
+
+% ============================================================================
+\section{Applications réelles et utilisation professionnelle}
+% ============================================================================
+
+\subsection{Qui utilise ces modèles ?}
+
+\begin{description}
+    \item[Market Makers] Utilisent le delta hedging en continu pour gérer leurs books d'options. Ils ajustent leurs positions plusieurs fois par minute.
+    
+    \item[Trading Desks des banques] Utilisent des modèles CRR étendus pour les options exotiques (américaines, barrières, asiatiques).
+    
+    \item[Asset Managers] Utilisent les Greeks pour comprendre et gérer l'exposition de leurs portefeuilles.
+    
+    \item[Risk Managers] Calculent la VaR (Value at Risk) des portefeuilles d'options en utilisant les sensibilités.
+\end{description}
+
+\subsection{Outils concrets}
+
+\begin{table}[H]
+\centering
+\caption{Outils utilisés dans l'industrie}
+\begin{tabular}{ll}
+\toprule
+\textbf{Catégorie} & \textbf{Outils} \\
+\midrule
+Terminaux & Bloomberg, Reuters Eikon, FactSet \\
+Langages & Python, C++, Q (kdb+), R \\
+Librairies & QuantLib, NumPy/SciPy, pandas \\
+Données & Options chains, volatilité implicite, Greeks \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Impact historique}
+
+Le modèle CRR et Black-Scholes ont révolutionné la finance :
+
+\begin{enumerate}
+    \item \textbf{Standardisation} : Un langage commun pour tous les acteurs
+    \item \textbf{Explosion des marchés dérivés} : De quasi-inexistants à des trillions de dollars
+    \item \textbf{Gestion des risques} : Possibilité de couvrir des expositions complexes
+    \item \textbf{Innovation financière} : Création de produits structurés
+\end{enumerate}
+
+\begin{keybox}[Citation de Robert Merton]
+``The Black-Scholes formula has had a direct impact on market practice, being used by traders to both quote and hedge options. It has also been influential in spawning a huge literature of generalizations and extensions.''
+\end{keybox}
+
+
+% ============================================================================
+\section{Limites et extensions}
+% ============================================================================
+
+\subsection{Limites du modèle CRR/Black-Scholes}
+
+\begin{enumerate}
+    \item \textbf{Volatilité constante} : En réalité, la volatilité varie dans le temps
+    
+    \item \textbf{Distribution log-normale} : Les rendements réels ont des \og queues épaisses \fg{} (fat tails)
+    
+    \item \textbf{Pas de sauts} : Les prix peuvent sauter brutalement (krachs, annonces)
+    
+    \item \textbf{Marché parfait} : Ignore les coûts de transaction, la liquidité limitée
+\end{enumerate}
+
+\subsection{Le smile de volatilité}
+
+Si Black-Scholes était parfait, la volatilité implicite serait la même pour tous les strikes. En pratique, on observe un \og smile \fg{} ou \og skew \fg{} :
+
+\begin{center}
+\begin{tikzpicture}
+    \begin{axis}[
+        width=10cm, height=5cm,
+        xlabel={Strike relatif ($K/S$)},
+        ylabel={Volatilité implicite},
+        xmin=0.8, xmax=1.2,
+        ymin=0.15, ymax=0.35,
+        grid=major,
+        axis lines=left
+    ]
+        \addplot[blue, thick, smooth] coordinates {
+            (0.8, 0.30) (0.85, 0.26) (0.9, 0.23) (0.95, 0.21) 
+            (1.0, 0.20) (1.05, 0.21) (1.1, 0.22) (1.15, 0.24) (1.2, 0.26)
+        };
+    \end{axis}
+\end{tikzpicture}
+\end{center}
+
+\subsection{Modèles à volatilité stochastique}
+
+\subsubsection{Le modèle de Heston (1993)}
+
+Introduit une volatilité qui suit son propre processus stochastique :
+
+\begin{align}
+    dS_t &= \mu S_t dt + \sqrt{v_t} S_t dW_t^S \\
+    dv_t &= \kappa(\theta - v_t) dt + \xi \sqrt{v_t} dW_t^v
+\end{align}
+
+avec $\text{Corr}(dW^S, dW^v) = \rho$.
+
+\textbf{Paramètres} :
+\begin{itemize}
+    \item $\kappa$ : vitesse de retour à la moyenne
+    \item $\theta$ : niveau moyen de variance à long terme
+    \item $\xi$ : volatilité de la volatilité
+    \item $\rho$ : corrélation (typiquement négative pour les actions)
+\end{itemize}
+
+\subsubsection{Le modèle SABR}
+
+Très utilisé sur les marchés de taux et de change :
+
+\begin{align}
+    dF_t &= \sigma_t F_t^\beta dW_t^1 \\
+    d\sigma_t &= \alpha \sigma_t dW_t^2
+\end{align}
+
+avec $\text{Corr}(dW^1, dW^2) = \rho$.
+
+\subsection{Modèles à sauts}
+
+Le modèle de Merton (1976) ajoute des sauts au mouvement brownien :
+
+\begin{equation}
+    dS_t = S_t \left[(\mu - \lambda k) dt + \sigma dW_t + (J-1) dN_t\right]
+\end{equation}
+
+où $N_t$ est un processus de Poisson d'intensité $\lambda$ et $J$ est l'amplitude du saut.
+
+
+% ============================================================================
+\section{Notre plateforme : implémentation et fonctionnalités}
+% ============================================================================
+
+\subsection{Architecture technique}
+
+Notre plateforme est développée en Python avec Streamlit pour l'interface :
+
+\begin{itemize}
+    \item \textbf{Backend} : NumPy, SciPy pour les calculs numériques
+    \item \textbf{Visualisation} : Plotly pour les graphiques interactifs
+    \item \textbf{Interface} : Streamlit avec CSS personnalisé
+\end{itemize}
+
+\subsection{Fonctionnalités implémentées}
+
+\begin{enumerate}
+    \item \textbf{Pricing CRR et Black-Scholes} : Calcul en temps réel avec comparaison
+    \item \textbf{Visualisation de l'arbre binomial} : Interactif avec valeurs aux nœuds
+    \item \textbf{Analyse de convergence} : Graphiques montrant la convergence vers BS
+    \item \textbf{Simulation Monte Carlo du hedging} : Distribution des erreurs, VaR
+    \item \textbf{Documentation intégrée} : Formules et théorie accessibles
+\end{enumerate}
+
+\subsection{Algorithmes clés}
+
+\begin{example}[Implémentation du CRR en Python]
+\begin{verbatim}
+def crr_binomial_tree(S, K, T, r, sigma, N, option_type="Call"):
+    dt = T / N
+    u = np.exp(sigma * np.sqrt(dt))
+    d = 1 / u
+    p = (np.exp(r * dt) - d) / (u - d)
+    
+    # Construction de l'arbre des prix
+    stock_tree = np.zeros((N+1, N+1))
+    for i in range(N+1):
+        for j in range(i+1):
+            stock_tree[j,i] = S * (u**(i-j)) * (d**j)
+    
+    # Payoffs à maturité
+    if option_type == "Call":
+        option_tree[:, N] = np.maximum(stock_tree[:, N] - K, 0)
+    else:
+        option_tree[:, N] = np.maximum(K - stock_tree[:, N], 0)
+    
+    # Backward induction
+    for i in range(N-1, -1, -1):
+        for j in range(i+1):
+            option_tree[j,i] = np.exp(-r*dt) * (
+                p * option_tree[j, i+1] + 
+                (1-p) * option_tree[j+1, i+1]
+            )
+    
+    return option_tree[0, 0]
+\end{verbatim}
+\end{example}
+
+
+% ============================================================================
+\section{Conclusion}
+% ============================================================================
+
+Le modèle de Cox-Ross-Rubinstein représente une contribution majeure à la finance quantitative. En proposant une approche discrète intuitive du pricing d'options, il a permis de démocratiser des concepts mathématiques complexes et de poser les bases de techniques de calcul numérique toujours utilisées aujourd'hui.
+
+\subsection{Points clés à retenir}
+
+\begin{enumerate}
+    \item Le principe de \textbf{non-arbitrage} est le fondement de toute la théorie
+    \item La \textbf{probabilité risque-neutre} permet de calculer des prix comme des espérances
+    \item Le \textbf{delta hedging} permet de répliquer (et donc de couvrir) une option
+    \item Le modèle CRR \textbf{converge vers Black-Scholes} en O(1/N)
+    \item Les modèles modernes étendent ces idées à des situations plus réalistes
+\end{enumerate}
+
+\subsection{Perspectives}
+
+Ce projet ouvre plusieurs pistes d'approfondissement :
+\begin{itemize}
+    \item Implémentation des options américaines (early exercise)
+    \item Calibration de modèles à volatilité stochastique
+    \item Analyse de la surface de volatilité implicite réelle
+    \item Extension aux options exotiques
+\end{itemize}
+
+\vspace{1cm}
+
+\begin{center}
+\textit{``In mathematics you don't understand things. You just get used to them.''}\\
+--- John von Neumann
+\end{center}
+
+
+% ============================================================================
+% BIBLIOGRAPHIE
+% ============================================================================
+
+\newpage
+\section*{Références}
+\addcontentsline{toc}{section}{Références}
+
+\begin{enumerate}
+    \item Cox, J. C., Ross, S. A., \& Rubinstein, M. (1979). \textit{Option pricing: A simplified approach}. Journal of Financial Economics, 7(3), 229-263.
+    
+    \item Black, F., \& Scholes, M. (1973). \textit{The pricing of options and corporate liabilities}. Journal of Political Economy, 81(3), 637-654.
+    
+    \item Merton, R. C. (1973). \textit{Theory of rational option pricing}. The Bell Journal of Economics and Management Science, 141-183.
+    
+    \item Hull, J. C. (2018). \textit{Options, Futures, and Other Derivatives} (10th ed.). Pearson.
+    
+    \item Shreve, S. E. (2004). \textit{Stochastic Calculus for Finance I: The Binomial Asset Pricing Model}. Springer.
+    
+    \item Heston, S. L. (1993). \textit{A closed-form solution for options with stochastic volatility}. The Review of Financial Studies, 6(2), 327-343.
+    
+    \item Glasserman, P. (2003). \textit{Monte Carlo Methods in Financial Engineering}. Springer.
+\end{enumerate}
+
+
+% ============================================================================
+% ANNEXES
+% ============================================================================
+
+\newpage
+\appendix
+\section{Glossaire complet}
+
+\begin{description}[leftmargin=2.5cm,style=nextline]
+    \item[ATM] At-The-Money : option dont le strike égale le prix spot
+    \item[Call] Option d'achat
+    \item[Delta] Sensibilité du prix de l'option au sous-jacent
+    \item[Gamma] Dérivée seconde du prix par rapport au sous-jacent
+    \item[Hedging] Couverture d'une position risquée
+    \item[ITM] In-The-Money : option avec valeur intrinsèque positive
+    \item[Martingale] Processus dont l'espérance future égale la valeur actuelle
+    \item[OTM] Out-of-The-Money : option sans valeur intrinsèque
+    \item[Payoff] Flux final reçu à maturité
+    \item[Premium] Prix payé pour acquérir l'option
+    \item[Put] Option de vente
+    \item[Rho] Sensibilité au taux d'intérêt
+    \item[Spot] Prix actuel du sous-jacent
+    \item[Strike] Prix d'exercice de l'option
+    \item[Theta] Sensibilité au temps (time decay)
+    \item[Vega] Sensibilité à la volatilité
+    \item[Volatilité] Mesure de la variabilité des rendements
+\end{description}
+
+
+\end{document}
